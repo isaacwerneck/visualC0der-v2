@@ -38,6 +38,7 @@ const CONFIG = {
 let audioContext, analyser, dataArray, timeDomainArray, bufferLength;
 let sourceNode, micStream, filePlayerEl;
 let audioReady = false;
+let sceneIsPlaying = false; // master transport: pauses analysis + animation together
 let kickBinMin = 0, kickBinMax = 0;
 
 function setupAudioContext() {
@@ -70,6 +71,8 @@ function connectSource(newSource, routeToSpeakers) {
     analyser.connect(audioContext.destination); // so you can hear the file
   }
   audioReady = true;
+  sceneIsPlaying = true;              // a freshly connected source starts playing
+  updatePlayPauseIcon();
 }
 
 function useMicrophone() {
@@ -95,12 +98,9 @@ function useAudioFile(event) {
   }
 
   if (!filePlayerEl) {
+    // Hidden by design -- we drive it entirely through our own play/pause button.
     filePlayerEl = document.createElement('audio');
-    filePlayerEl.controls = true;
-    filePlayerEl.style.position = 'fixed';
-    filePlayerEl.style.bottom = '20px';
-    filePlayerEl.style.left = '50%';
-    filePlayerEl.style.transform = 'translateX(-50%)';
+    filePlayerEl.style.display = 'none';
     document.body.appendChild(filePlayerEl);
   }
 
@@ -108,6 +108,24 @@ function useAudioFile(event) {
   filePlayerEl.play();
   connectSource(audioContext.createMediaElementSource(filePlayerEl), true);
   // true = also route to speakers so you can actually hear the track
+}
+
+// --- Transport: play/pause the whole scene (audio + animation together) ---
+function togglePlayPause() {
+  if (!audioReady) return; // nothing to play yet
+  sceneIsPlaying = !sceneIsPlaying;
+  if (filePlayerEl) {
+    if (sceneIsPlaying) filePlayerEl.play();
+    else filePlayerEl.pause();
+  }
+  updatePlayPauseIcon();
+}
+
+function updatePlayPauseIcon() {
+  const btn = document.getElementById('play-pause-btn');
+  if (!btn) return;
+  btn.querySelector('.icon').textContent = sceneIsPlaying ? '⏸' : '▶';
+  btn.setAttribute('aria-label', sceneIsPlaying ? 'Pause' : 'Play');
 }
 
 // ===================================================================
@@ -209,10 +227,16 @@ function averageBinRange(data, fromBin, toBin) {
 
 // ===================================================================
 // VISUAL STATE
+// These hold the "current" value of everything on screen. They only get
+// updated while sceneIsPlaying is true -- so pausing genuinely freezes
+// the picture instead of just muting the sound.
 // ===================================================================
 
+let visualTime = 0;          // our own clock for animation, frozen on pause
 let smoothedVolume = 0;
 let currentHue = 200, targetHue = 200;
+let currentRadius = CONFIG.minRadius;
+let currentSat = 70, currentBri = 85;
 let kickEnergy = 0;
 let lastKickTime = 0;
 let bassHistory = [];
@@ -229,6 +253,7 @@ function setup() {
 
   document.getElementById('mic-btn').addEventListener('click', useMicrophone);
   document.getElementById('file-input').addEventListener('change', useAudioFile);
+  document.getElementById('play-pause-btn').addEventListener('click', togglePlayPause);
 }
 
 function draw() {
@@ -242,58 +267,64 @@ function draw() {
     return;
   }
 
-  analyser.getByteFrequencyData(dataArray);
-  analyser.getFloatTimeDomainData(timeDomainArray);
+  if (sceneIsPlaying) {
+    visualTime += 0.01;
 
-  // ---------- size: smoothed RMS loudness ----------
-  const rms = computeRMS(timeDomainArray);
-  const targetVolume = constrain(map(rms, 0, CONFIG.volumeCeiling, 0, 1), 0, 1);
-  smoothedVolume = lerp(smoothedVolume, targetVolume, CONFIG.volumeSmoothing);
-  const radius = map(smoothedVolume, 0, 1, CONFIG.minRadius, CONFIG.maxRadius);
+    analyser.getByteFrequencyData(dataArray);
+    analyser.getFloatTimeDomainData(timeDomainArray);
 
-  // ---------- color: detected note ----------
-  const freq = autoCorrelate(timeDomainArray, audioContext.sampleRate);
-  if (freq !== -1) {
-    targetHue = freqToNoteIndex(freq) * 30; // 12 notes spread evenly, 30° apart
+    // ---------- size: smoothed RMS loudness ----------
+    const rms = computeRMS(timeDomainArray);
+    const targetVolume = constrain(map(rms, 0, CONFIG.volumeCeiling, 0, 1), 0, 1);
+    smoothedVolume = lerp(smoothedVolume, targetVolume, CONFIG.volumeSmoothing);
+    currentRadius = map(smoothedVolume, 0, 1, CONFIG.minRadius, CONFIG.maxRadius);
+
+    // ---------- color: detected note ----------
+    const freq = autoCorrelate(timeDomainArray, audioContext.sampleRate);
+    if (freq !== -1) {
+      targetHue = freqToNoteIndex(freq) * 30; // 12 notes spread evenly, 30° apart
+    }
+    // if no confident pitch this frame, currentHue just holds its last value
+    currentHue = lerpHueShortest(currentHue, targetHue, CONFIG.hueSmoothing);
+
+    // ---------- distortion: bass/kick onset detection ----------
+    const kickBandEnergy = averageBinRange(dataArray, kickBinMin, kickBinMax);
+    bassHistory.push(kickBandEnergy);
+    if (bassHistory.length > BASS_HISTORY_SIZE) bassHistory.shift();
+    const bassAverage = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
+
+    const now = millis();
+    const isHit =
+      kickBandEnergy > bassAverage * CONFIG.kickThresholdMultiplier &&
+      kickBandEnergy > CONFIG.kickMinEnergy &&
+      now - lastKickTime > CONFIG.kickCooldownMs;
+
+    if (isHit) {
+      kickEnergy = 1;
+      lastKickTime = now;
+      ripples.push({ r: currentRadius, alpha: 100 });
+    }
+    kickEnergy *= CONFIG.kickDecay; // percussive envelope: spike, then decay
+
+    // saturation/brightness ride along with loudness -- quiet feels soft, loud feels vivid
+    currentSat = map(smoothedVolume, 0, 1, 50, 100);
+    currentBri = map(smoothedVolume, 0, 1, 70, 100);
   }
-  // if no confident pitch this frame, currentHue just holds its last value
-  currentHue = lerpHueShortest(currentHue, targetHue, CONFIG.hueSmoothing);
-
-  // ---------- distortion: bass/kick onset detection ----------
-  const kickBandEnergy = averageBinRange(dataArray, kickBinMin, kickBinMax);
-  bassHistory.push(kickBandEnergy);
-  if (bassHistory.length > BASS_HISTORY_SIZE) bassHistory.shift();
-  const bassAverage = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
-
-  const now = millis();
-  const isHit =
-    kickBandEnergy > bassAverage * CONFIG.kickThresholdMultiplier &&
-    kickBandEnergy > CONFIG.kickMinEnergy &&
-    now - lastKickTime > CONFIG.kickCooldownMs;
-
-  if (isHit) {
-    kickEnergy = 1;
-    lastKickTime = now;
-    ripples.push({ r: radius, alpha: 100 });
-  }
-  kickEnergy *= CONFIG.kickDecay; // percussive envelope: spike, then decay
-
-  // saturation/brightness ride along with loudness -- quiet feels soft, loud feels vivid
-  const sat = map(smoothedVolume, 0, 1, 50, 100);
-  const bri = map(smoothedVolume, 0, 1, 70, 100);
 
   drawRipples();
-  drawBlob(width / 2, height / 2, radius, sat, bri);
+  drawBlob(width / 2, height / 2, currentRadius, currentSat, currentBri);
 }
 
 // A faint ring that expands outward and fades on every detected kick --
-// handy for confirming hits are landing where you expect.
+// handy for confirming hits are landing where you expect. Freezes on pause.
 function drawRipples() {
   noFill();
   for (let i = ripples.length - 1; i >= 0; i--) {
     const rp = ripples[i];
-    rp.r += 6;
-    rp.alpha -= 4;
+    if (sceneIsPlaying) {
+      rp.r += 6;
+      rp.alpha -= 4;
+    }
     if (rp.alpha <= 0) {
       ripples.splice(i, 1);
       continue;
@@ -316,7 +347,7 @@ function drawBlob(cx, cy, baseRadius, sat, bri) {
   const segments = 100;
   for (let i = 0; i <= segments; i++) {
     const angle = map(i, 0, segments, 0, TWO_PI);
-    const n = noise(cos(angle) * 1.5 + 10, sin(angle) * 1.5 + 10, frameCount * 0.01);
+    const n = noise(cos(angle) * 1.5 + 10, sin(angle) * 1.5 + 10, visualTime);
     const r = baseRadius + (n - 0.5) * distortion;
     vertex(cx + cos(angle) * r, cy + sin(angle) * r);
   }
