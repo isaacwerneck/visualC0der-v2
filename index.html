@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,15 +8,101 @@
 </head>
 <body>
 
-    <div id="controls">
-      <button id="mic-btn">🎤 Use Microphone</button>
-      <label class="file-btn">
-        🎵 Choose Audio File
-        <input type="file" id="file-input" accept="audio/*" hidden>
-      </label>
-      <button id="play-pause-btn" class="play-pause-btn" aria-label="Play">
-        <span class="icon">▶</span>
-      </button>
+    <div id="top-bar">
+      <div id="mode-tabs">
+        <button class="mode-tab active" data-mode="mic">🎤 Microfone</button>
+        <button class="mode-tab" data-mode="file">🎵 Arquivo</button>
+        <button class="mode-tab" data-mode="band">🎸 Banda</button>
+      </div>
+
+      <div id="mode-panel-row">
+        <div class="panel" id="panel-mic">
+          <button id="mic-btn">Usar microfone</button>
+        </div>
+
+        <div class="panel" id="panel-file" hidden>
+          <label class="file-btn">
+            Escolher áudio
+            <input type="file" id="file-input" accept="audio/*" hidden>
+          </label>
+        </div>
+
+        <div class="panel" id="panel-band" hidden>
+          <label class="file-btn small">
+            🥁 Bateria
+            <input type="file" id="band-drums-input" accept="audio/*" hidden>
+          </label>
+          <label class="file-btn small">
+            🎸 Guitarra
+            <input type="file" id="band-guitar-input" accept="audio/*" hidden>
+          </label>
+          <label class="file-btn small">
+            🎵 Baixo
+            <input type="file" id="band-bass-input" accept="audio/*" hidden>
+          </label>
+        </div>
+
+        <div class="playback-controls">
+          <button id="play-pause-btn" class="play-pause-btn" aria-label="Tocar">
+            <span class="icon">▶</span>
+          </button>
+          
+          <div class="track-info">
+            <span id="track-name">Nenhuma música carregada</span>
+            <div class="progress-container">
+              <span id="current-time">0:00</span>
+              <input type="range" id="seek-bar" value="0" step="0.1" min="0">
+              <span id="total-duration">0:00</span>
+            </div>
+          </div>
+
+          <div class="volume-control">
+            <span>🔈</span>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+          </div>
+        </div>
+
+        <button id="add-shape-btn" class="add-shape-btn">+ Forma</button>
+        <div class="extra-controls">
+           <label class="shader-toggle"><input type="checkbox" id="bg-shader-toggle"> Fundo Especial</label>
+           <button id="clear-scene-btn" class="danger-btn">Limpar Tudo</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="element-panel" class="element-panel" hidden>
+      <div class="panel-row">
+        <label>Forma</label>
+        <select id="el-shape">
+          <option value="circle">Círculo</option>
+          <option value="square">Quadrado</option>
+          <option value="triangle">Triângulo</option>
+        </select>
+      </div>
+
+      <div class="panel-row" id="el-source-row" hidden>
+        <label>Fonte</label>
+        <select id="el-source"></select>
+      </div>
+
+      <div class="panel-row">
+        <label>Reage a</label>
+        <div id="el-reactions" class="checkbox-list"></div>
+      </div>
+
+      <div class="panel-row">
+        <label>Efeitos</label>
+        <div id="el-effects" class="checkbox-list">
+          <label><input type="checkbox" value="mirror"> Espelhar</label>
+          <label><input type="checkbox" value="trail"> Rastro</label>
+          <label><input type="checkbox" value="glow"> Brilho (Glow)</label>
+        </div>
+      </div>
+
+      <div class="panel-actions">
+        <button id="el-remove">🗑 Remover</button>
+        <button id="el-close">Fechar</button>
+      </div>
     </div>
 
     <!--library do p5.js-->
