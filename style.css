@@ -1,212 +1,152 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* 
+ * visualC0der-v2 - Stylesheet 
+ * Optimized for performance and music reactivity
+ */
+
+:root {
+  --bg-dark: #0a0a0c;
+  --panel-bg: #16161a;
+  --accent-primary: #ffffff;
+  --accent-secondary: #3b82f6;
+  --text-main: #e2e8f0;
+  --text-dim: #94a3b8;
+  --border-color: #2a2a2f;
+  --transition-fast: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body {
-  background: #0a0a0a;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow: hidden; /* Prevents scrollbars during visualizer interaction */
 }
 
-canvas {
-  display: block;
-  cursor: pointer;
+/* Smooth fade entering animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.96) translateY(5px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-#top-bar {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  z-index: 10;
+.animate-fade-in {
+  animation: fadeIn var(--transition-fast) forwards;
+  will-change: opacity, transform;
 }
 
-#mode-tabs {
-  display: flex;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 999px;
-  padding: 4px;
+/* Custom properties panels adjustments */
+#properties-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  padding: 1rem;
+  backdrop-filter: blur(10px);
+  z-index: 30; /* Garante que o painel esteja acima dos canvases */
 }
 
-.mode-tab {
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.6);
-  padding: 8px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+/* Tailoring custom styled input sliders for visualizer timeline */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  background: var(--border-color);
+  border-radius: 4px;
+  height: 4px;
+  width: 100%;
+  transition: background 0.3s ease;
 }
 
-.mode-tab.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+input[type="range"]:hover {
+  background: #3f3f46;
 }
 
-#mode-panel-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.panel {
-  display: flex;
-  gap: 10px;
-}
-
-.panel button,
-.file-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 999px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.panel button:hover,
-.file-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.file-btn.small {
-  padding: 8px 14px;
-  font-size: 13px;
-}
-
-.add-shape-btn {
-  background: rgba(190, 140, 255, 0.12);
-  border: 1px solid rgba(190, 140, 255, 0.4);
-  color: #fff;
-  padding: 10px 16px;
-  border-radius: 999px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.add-shape-btn:hover {
-  background: rgba(190, 140, 255, 0.22);
-}
-
-/* Transport control: a small circular button, visually distinct from
-   the rectangular source-selection buttons next to it. */
-.play-pause-btn {
-  width: 44px;
-  height: 44px;
-  padding: 0;
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+  background: var(--accent-primary);
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.1s ease;
+  transition: transform var(--transition-fast);
+  border: 2px solid var(--bg-dark);
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
 }
 
-.play-pause-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+  background: var(--accent-secondary);
 }
 
-.play-pause-btn:active {
-  transform: scale(0.92);
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+  border: 2px solid var(--bg-dark);
 }
 
-.play-pause-btn .icon {
-  line-height: 1;
+/* Band Mode - Track Layout */
+.band-track-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 20px;
 }
 
-/* Floating properties panel for whichever shape is selected */
-.element-panel {
+.instrument-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  transition: border-color var(--transition-fast);
+}
+
+.instrument-card:hover {
+  border-color: var(--accent-secondary);
+}
+
+/* Control Bar (Bottom UI) */
+.control-bar {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
-  width: 250px;
-  background: rgba(18, 18, 18, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  z-index: 20;
-  color: #fff;
-}
-
-.panel-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.panel-row label {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.element-panel select {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.checkbox-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.checkbox-list label {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: rgba(16, 16, 20, 0.9);
+  backdrop-filter: blur(15px);
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  cursor: pointer;
-  text-transform: none;
+  padding: 0 24px;
+  gap: 20px;
+  z-index: 100;
 }
 
-.panel-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
+.file-info {
+  min-width: 150px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.panel-actions button {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
+/* Interactive checkbox focus styles */
+input[type="checkbox"] {
+  border-radius: 4px;
+  accent-color: var(--accent-secondary);
   cursor: pointer;
 }
 
-.panel-actions button:hover {
-  background: rgba(255, 255, 255, 0.18);
+/* Hidden state with transitions */
+.hidden {
+  display: none !important;
+}
+
+/* Custom cursor crosshair */
+.cursor-crosshair {
+  cursor: crosshair;
 }

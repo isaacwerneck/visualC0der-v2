@@ -1,114 +1,292 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>visualc0der</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acoustic Visualizer - Web Version</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            neutral: {
+              750: '#202024',
+              850: '#151518',
+              900: '#101012',
+              950: '#070708',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Custom CSS file -->
+  <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="relative w-screen h-screen overflow-hidden bg-neutral-950 text-slate-200 antialiased font-sans select-none">
 
-    <div id="top-bar">
-      <div id="mode-tabs">
-        <button class="mode-tab active" data-mode="mic">🎤 Microfone</button>
-        <button class="mode-tab" data-mode="file">🎵 Arquivo</button>
-        <button class="mode-tab" data-mode="band">🎸 Banda</button>
-      </div>
+  <!-- File Input Handlers -->
+  <input type="file" id="file-input" accept="audio/*" class="hidden">
+  <input type="file" id="drums-input" accept="audio/*" class="hidden">
+  <input type="file" id="guitar-input" accept="audio/*" class="hidden">
+  <input type="file" id="bass-input" accept="audio/*" class="hidden">
 
-      <div id="mode-panel-row">
-        <div class="panel" id="panel-mic">
-          <button id="mic-btn">Usar microfone</button>
-        </div>
+  <!-- Radial glowing background nodes -->
+  <div class="fixed top-0 left-1/4 w-96 h-96 bg-emerald-500/5 blur-[125px] rounded-full animate-pulse-slow pointer-events-none"></div>
+  <div class="fixed bottom-0 right-1/4 w-[400px] h-[400px] bg-indigo-500/5 blur-[140px] rounded-full animate-pulse-slow delay-3000 pointer-events-none"></div>
 
-        <div class="panel" id="panel-file" hidden>
-          <label class="file-btn">
-            Escolher áudio
-            <input type="file" id="file-input" accept="audio/*" hidden>
-          </label>
-        </div>
+  <!-- Background Shader Canvas (for psychedelic effects) -->
+  <canvas id="background-canvas" class="absolute inset-0 w-full h-full z-0"></canvas>
 
-        <div class="panel" id="panel-band" hidden>
-          <label class="file-btn small">
-            🥁 Bateria
-            <input type="file" id="band-drums-input" accept="audio/*" hidden>
-          </label>
-          <label class="file-btn small">
-            🎸 Guitarra
-            <input type="file" id="band-guitar-input" accept="audio/*" hidden>
-          </label>
-          <label class="file-btn small">
-            🎵 Baixo
-            <input type="file" id="band-bass-input" accept="audio/*" hidden>
-          </label>
-        </div>
+  <!-- Interactive Graphic Canvas -->
+  <canvas id="visualizer-canvas" class="absolute inset-0 w-full h-full z-10 bg-transparent cursor-crosshair"></canvas>
 
-        <div class="playback-controls">
-          <button id="play-pause-btn" class="play-pause-btn" aria-label="Tocar">
-            <span class="icon">▶</span>
-          </button>
-          
-          <div class="track-info">
-            <span id="track-name">Nenhuma música carregada</span>
-            <div class="progress-container">
-              <span id="current-time">0:00</span>
-              <input type="range" id="seek-bar" value="0" step="0.1" min="0">
-              <span id="total-duration">0:00</span>
-            </div>
-          </div>
+  <!-- Title / Logo on top-left -->
+  <div class="absolute top-6 left-6 z-20 pointer-events-none flex flex-col gap-1 hidden md:flex">
+    <div class="flex items-center gap-2">
+      <div class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></div>
+      <span class="text-[10px] font-bold font-mono tracking-widest text-slate-400">ACOUSTIC // VISUALIZER</span>
+    </div>
+    <span class="text-[9px] font-mono text-neutral-500">Standalone Client Release</span>
+  </div>
 
-          <div class="volume-control">
-            <span>🔈</span>
-            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
-          </div>
-        </div>
-
-        <button id="add-shape-btn" class="add-shape-btn">+ Forma</button>
-        <div class="extra-controls">
-           <label class="shader-toggle"><input type="checkbox" id="bg-shader-toggle"> Fundo Especial</label>
-           <button id="clear-scene-btn" class="danger-btn">Limpar Tudo</button>
-        </div>
-      </div>
+  <!-- Floating Center Controls Header -->
+  <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5 w-full max-w-xl px-4 pointer-events-none">
+    
+    <!-- Mode Select Pill -->
+    <div class="flex items-center gap-1 bg-[#121214]/90 backdrop-blur border border-neutral-800 px-1 py-1 rounded-full shadow-2xl pointer-events-auto">
+      <button id="btn-mode-mic" class="mode-btn flex items-center gap-1 px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition duration-150 cursor-pointer bg-neutral-800 text-white shadow-md border border-neutral-700/40">
+        <span>🎤 Microfone</span>
+      </button>
+      <button id="btn-mode-file" class="mode-btn flex items-center gap-1 px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition duration-150 cursor-pointer text-neutral-400 hover:text-neutral-200">
+        <span>🎵 Arquivo</span>
+      </button>
+      <button id="btn-mode-band" class="mode-btn flex items-center gap-1 px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition duration-150 cursor-pointer text-neutral-400 hover:text-neutral-200">
+        <span>🎸 Banda</span>
+      </button>
     </div>
 
-    <div id="element-panel" class="element-panel" hidden>
-      <div class="panel-row">
-        <label>Forma</label>
-        <select id="el-shape">
+    <!-- Action Bar Controllers Pill -->
+    <div class="flex flex-wrap items-center justify-center gap-2 bg-[#121214]/90 backdrop-blur border border-neutral-800 px-3 py-2 rounded-2xl shadow-2xl pointer-events-auto w-full md:w-auto">
+      
+      <!-- Microphone Trigger -->
+      <button id="btn-action-mic" class="flex items-center gap-1.5 text-[10px] font-mono tracking-wider font-bold uppercase px-3 py-1.5 bg-neutral-900 border border-neutral-800 rounded-lg hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 transition cursor-pointer">
+        <span id="txt-action-mic">🎤 USAR MICROFONE</span>
+      </button>
+
+      <!-- Solo file loader -->
+      <button id="btn-choose-file" class="hidden flex items-center gap-1.5 text-[10px] font-mono tracking-wider font-bold uppercase px-3 py-1.5 bg-neutral-900 border border-neutral-800 rounded-lg hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 transition cursor-pointer max-w-[140px] truncate">
+        <i data-lucide="upload" class="shrink-0 text-neutral-400 w-3.5 h-3.5"></i>
+        <span id="txt-choose-file">ESCOLHER ÁUDIO</span>
+      </button>
+
+      <!-- Band loaders -->
+      <div id="band-inputs-container" class="hidden flex items-center gap-1.5">
+        <button id="btn-band-drums" class="flex items-center gap-1.5 text-[10px] font-mono tracking-wider font-bold uppercase px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-700 transition cursor-pointer max-w-[110px] truncate">
+          <span>🥁 BATERIA</span>
+        </button>
+        <button id="btn-band-guitar" class="flex items-center gap-1.5 text-[10px] font-mono tracking-wider font-bold uppercase px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-700 transition cursor-pointer max-w-[110px] truncate">
+          <span>🎸 GUITARRA</span>
+        </button>
+        <button id="btn-band-bass" class="flex items-center gap-1.5 text-[10px] font-mono tracking-wider font-bold uppercase px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-400 rounded-lg hover:border-neutral-700 transition cursor-pointer max-w-[110px] truncate">
+          <span>🎵 BAIXO</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Play / Pause trigger -->
+        <button id="btn-play-pause" class="hidden p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-lg shadow-indigo-500/20 transition cursor-pointer flex items-center justify-center shrink-0">
+          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+        </button>
+
+        <!-- Export Video -->
+        <button id="btn-export-video" class="hidden p-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg shadow-lg shadow-rose-500/20 transition cursor-pointer flex items-center justify-center shrink-0" title="Exportar Vídeo (10s)">
+          <i data-lucide="video" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Volume Control -->
+        <div id="volume-container" class="hidden flex items-center gap-2 bg-neutral-900/50 px-3 py-1.5 rounded-lg border border-neutral-800">
+          <i data-lucide="volume-2" class="w-3.5 h-3.5 text-neutral-500"></i>
+          <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.7" class="w-20 h-1 bg-neutral-700 rounded-full appearance-none cursor-pointer accent-indigo-400">
+        </div>
+      </div>
+
+      <div class="h-4 w-[1px] bg-neutral-800 mx-1 shrink-0 hidden md:block"></div>
+
+      <!-- Add Form Shape Button -->
+      <button id="btn-add-shape" class="flex items-center gap-1 text-[10px] font-mono tracking-wider font-bold uppercase px-3 py-1.5 bg-[#201126]/95 border border-fuchsia-900/60 hover:border-fuchsia-700 text-fuchsia-400 rounded-lg hover:bg-[#2e1a38]/95 transition cursor-pointer shrink-0 active:scale-95 shadow-md shadow-fuchsia-950/20">
+        <i data-lucide="plus" class="w-3.5 h-3.5 text-fuchsia-400"></i>
+        <span>+ FORMA</span>
+      </button>
+
+      <!-- Reset Canvas Trigger -->
+      <button id="btn-reset-canvas" class="p-1.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-400 hover:text-neutral-300 rounded-lg border border-neutral-800 transition cursor-pointer flex items-center justify-center shrink-0" title="Resetar tudo">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom Timeline Progress bar -->
+  <div id="timeline-container" class="hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-4 pointer-events-none">
+    <div class="bg-[#121214]/90 backdrop-blur border border-neutral-800/65 px-4 py-3 rounded-2xl shadow-2xl flex flex-col gap-1.5 pointer-events-auto">
+      <div class="flex items-center justify-between text-[9px] font-mono text-neutral-500 uppercase tracking-widest leading-none">
+        <span>Linha do Tempo</span>
+        <span id="txt-elapsed-time">0:00 / 0:00</span>
+      </div>
+      <input type="range" id="timeline-slider" min="0" max="100" step="0.1" value="0" class="w-full h-1 bg-neutral-800 rounded appearance-none cursor-pointer accent-neutral-300 focus:outline-none">
+    </div>
+  </div>
+
+  <!-- Bottom-Left Properties Inspector card -->
+  <div id="properties-panel" class="hidden absolute bottom-6 left-6 z-35 w-72 bg-[#0c0c0e]/95 backdrop-blur-md rounded-2xl border border-neutral-850/80 p-4.5 shadow-2xl flex flex-col gap-3.5 text-xs">
+    
+    <!-- Title header -->
+    <div class="flex items-center justify-between border-b border-neutral-850/65 pb-2">
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+        <span class="text-[10px] font-bold font-mono text-neutral-300 uppercase tracking-wider">PROPRIEDADES</span>
+      </div>
+      <button id="btn-close-properties" class="text-neutral-500 hover:text-neutral-300 transition cursor-pointer p-0.5 rounded hover:bg-neutral-900">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+
+    <!-- Panel sliders & options -->
+    <div class="flex flex-col gap-3">
+      
+      <!-- Shape selected dropdown -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-wider">FORMA</label>
+        <select id="select-prop-shape" class="bg-neutral-950 border border-neutral-800 text-neutral-250 hover:text-white rounded-lg px-2.5 py-1.5 w-full focus:outline-none text-xs font-semibold cursor-pointer">
           <option value="circle">Círculo</option>
           <option value="square">Quadrado</option>
           <option value="triangle">Triângulo</option>
+          <option value="ring">Anel</option>
+          <option value="star">Estrela</option>
         </select>
       </div>
 
-      <div class="panel-row" id="el-source-row" hidden>
-        <label>Fonte</label>
-        <select id="el-source"></select>
-      </div>
-
-      <div class="panel-row">
-        <label>Reage a</label>
-        <div id="el-reactions" class="checkbox-list"></div>
-      </div>
-
-      <div class="panel-row">
-        <label>Efeitos</label>
-        <div id="el-effects" class="checkbox-list">
-          <label><input type="checkbox" value="mirror"> Espelhar</label>
-          <label><input type="checkbox" value="trail"> Rastro</label>
-          <label><input type="checkbox" value="glow"> Brilho (Glow)</label>
+      <!-- Color base hue slider -->
+      <div class="flex flex-col gap-1">
+        <div class="flex justify-between text-[9px] font-mono font-bold text-neutral-500 tracking-wider">
+          <span class="uppercase">COR DA FORMA</span>
+          <span id="text-prop-hue-value" class="text-[#00ffd2]">200°</span>
+        </div>
+        <div class="flex items-center gap-2 bg-neutral-950 p-2 rounded-lg border border-neutral-800/80">
+          <div id="preview-prop-color" class="w-3.5 h-3.5 rounded shrink-0 border border-neutral-900 bg-cyan-400"></div>
+          <input type="range" id="slider-prop-hue" min="0" max="360" step="1" value="200" class="w-full h-1 bg-neutral-800 rounded appearance-none cursor-pointer accent-neutral-200 focus:outline-none">
         </div>
       </div>
 
-      <div class="panel-actions">
-        <button id="el-remove">🗑 Remover</button>
-        <button id="el-close">Fechar</button>
+      <!-- Stem source configuration (Band Mode option) -->
+      <div id="container-prop-source" class="hidden flex flex-col gap-1">
+        <label class="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-wider">FONTE DO ÁUDIO</label>
+        <select id="select-prop-source" class="bg-neutral-950 border border-neutral-800 text-neutral-250 hover:text-white rounded-lg px-2.5 py-1.5 w-full focus:outline-none text-xs font-semibold cursor-pointer">
+          <option value="drums">Bateria 🥁</option>
+          <option value="guitar">Guitarra 🎸</option>
+          <option value="bass">Baixo 🔊</option>
+        </select>
       </div>
+
+      <!-- Reactions list container -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-wider">REAGE A</label>
+        <div id="reactions-checklist" class="flex flex-col gap-1.5 bg-neutral-950 p-2.5 rounded-lg border border-neutral-800/85">
+          <!-- Populated dynamically via script based on mode/source -->
+        </div>
+      </div>
+
+      <!-- FX selections -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-wider">EFEITOS ADICIONAIS</label>
+        <div class="flex items-center gap-4 bg-neutral-950 px-2.5 py-2 rounded-lg border border-neutral-800/80 text-[10.5px] text-neutral-300">
+          <label class="flex items-center gap-2 cursor-pointer select-none hover:text-white transition">
+            <input type="checkbox" id="check-fx-mirror" class="rounded border-neutral-800 bg-neutral-900 accent-neutral-200 w-3.5 h-3.5">
+            <span>Espelhar</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer select-none hover:text-white transition">
+            <input type="checkbox" id="check-fx-trail" class="rounded border-neutral-800 bg-neutral-900 accent-neutral-200 w-3.5 h-3.5">
+            <span>Rastro</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Shader Background Options (Placeholder) -->
+      <div class="flex flex-col gap-1.5 border-t border-neutral-850/65 pt-3.5 mt-1.5">
+        <label class="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-wider">FUNDO PSICODÉLICO</label>
+        <div class="flex flex-col gap-2.5 bg-neutral-950 px-2.5 py-2 rounded-lg border border-neutral-800/80 text-[10.5px] text-neutral-300">
+          <label class="flex items-center gap-2 cursor-pointer select-none hover:text-white transition">
+            <input type="checkbox" id="check-bg-shader" class="rounded border-neutral-800 bg-neutral-900 accent-neutral-200 w-3.5 h-3.5">
+            <span>Ativar Shader</span>
+          </label>
+          
+          <div class="flex flex-col gap-1.5 border-t border-neutral-900 pt-2">
+            <div class="flex justify-between text-[8px] font-mono font-bold text-neutral-500 tracking-wider uppercase">
+              <span>Detalhes Fractal</span>
+              <span id="text-bg-iterations-value" class="text-neutral-300">4</span>
+            </div>
+            <input type="range" id="slider-bg-iterations" min="1" max="8" step="1" value="4" class="w-full h-1 bg-neutral-800 rounded appearance-none cursor-pointer accent-neutral-400 focus:outline-none">
+          </div>
+
+          <div class="flex flex-col gap-1.5 border-t border-neutral-900 pt-2">
+            <div class="flex justify-between text-[8px] font-mono font-bold text-neutral-500 tracking-wider uppercase">
+              <span>Velocidade e Rotação</span>
+            </div>
+            <div class="flex gap-2">
+              <div class="flex-1 flex flex-col gap-1">
+                <input type="range" id="slider-bg-speed" min="0" max="3" step="0.1" value="1" class="w-full h-1 bg-neutral-800 rounded appearance-none cursor-pointer accent-indigo-400 focus:outline-none">
+              </div>
+              <div class="flex-1 flex flex-col gap-1">
+                <input type="range" id="slider-bg-rotation" min="0" max="3" step="0.1" value="1" class="w-full h-1 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400 focus:outline-none">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <!--library do p5.js-->
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+    <!-- Footer button triggers -->
+    <div class="flex items-center gap-2.5 pt-2 border-t border-neutral-850/65 mt-0.5">
+      <button id="btn-remove-shape" class="flex-1 py-1.5 px-3 bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 border border-rose-900/40 rounded-lg text-[10.5px] font-mono uppercase tracking-wider font-bold inline-flex items-center justify-center gap-1 cursor-pointer hover:border-rose-700 transition">
+        <i data-lucide="trash-2" class="w-3 h-3"></i>
+        <span>Remover</span>
+      </button>
+      <button id="btn-close-prop-panel" class="flex-1 py-1.5 px-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-250 hover:text-white rounded-lg text-[10.5px] font-mono uppercase tracking-wider font-bold border border-neutral-800 hover:border-neutral-700 cursor-pointer text-center transition">
+        Fechar
+      </button>
+    </div>
 
-    <script src="sketch.js"></script>
+  </div>
 
+  <!-- Bottom-Right Floating Uptime and FPS tracker -->
+  <div class="absolute bottom-6 right-6 z-20 pointer-events-none hidden md:flex items-center gap-2 bg-[#121214]/80 backdrop-blur px-3 py-1.5 rounded-full border border-neutral-800/60 shadow-lg text-[9px] font-mono text-neutral-500 uppercase tracking-widest">
+    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+    <span>Drag & Amp; Drop | standalone 1.0</span>
+  </div>
+
+  <!-- Standalone App Logic script -->
+  <script src="sketch.js"></script>
 </body>
 </html>
